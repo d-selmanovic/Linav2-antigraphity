@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  lina-voice-agent:
+    build: .
+    container_name: lina-voice-agent
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
