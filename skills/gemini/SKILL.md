@@ -132,6 +132,11 @@ To migrate from the standard `Aoede` voice to a personalized branded Job-Step vo
 
 Whenever evaluating or auditing this system in Antigravity:
 1. Read `.env` and verify `GEMINI_API_KEY`, `AIRTABLE_API_KEY`, and `AIRTABLE_BASE_ID`.
-2. Inspect server health via `curl -s http://localhost:8000/health`.
+2. Inspect server health & metrics via:
+   - `curl -s http://localhost:8000/health | jq .`
+   - `curl -s http://localhost:8000/metrics | jq .`
+   - `curl -s http://localhost:8000/debug/errors | jq .`
 3. Verify that `input_audio_transcription` events are correctly populating `recordings/*_transcript.txt`.
-4. Verify Langfuse traces under `telemetry.py`.
+4. Inspect `logs/lina.log` and `logs/error.log` for audio resampler or streaming exceptions.
+5. Verify Langfuse traces under `telemetry.py`.
+6. Run `./commit_and_deploy.sh` prior to finalizing any pull request or deployment.

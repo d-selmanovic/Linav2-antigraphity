@@ -53,6 +53,8 @@ Lina is a full-duplex conversational voice agent designed for recruiting constru
 | `server.py` | FastAPI server, WebSocket endpoint `/ws/pbx`, audio resampling, Gemini Live session management, tool dispatching, transcription events, Langfuse spans. | Lines 50–120 (audio resampler), 140–280 (Gemini Live loop) |
 | `audio_recorder.py` | Dual-side call audio recorder (mixed WAV output) and timestamped dialogue transcription exporter (`./recordings/*.wav`, `*_transcript.txt`). | `CallRecorder.record_caller_audio()`, `record_agent_audio()`, `finalize()` |
 | `telemetry.py` | Langfuse LLM Observability & Tracing client. Manages call sessions, tool execution spans, error levels, and latency monitoring. | `LinaTracer.start_call_trace()`, `DummyTrace` fallback |
+| `logger_config.py` | Structured rotating file logging (`logs/lina.log`, `logs/error.log`) and live in-memory telemetry metrics. | `setup_logging()`, `metrics.record_call_start()` |
+| `commit_and_deploy.sh` | 7-step pre-push integrity auditor, skill synchronizer, and GitHub deployer. | Terminal execution |
 | `airtable_service.py` | Async Airtable integration with telephone normalization (`+387 / 0`), candidate upsert into `Prijave (test)`. | Schema mapping dictionary, `save_or_update_candidate()` |
 | `prompts.py` | Bosnian ijekavski system prompt, objection handling (salary, robot counter, casting dates), Gemini tool schema declarations. | `LINA_SYSTEM_INSTRUCTION`, `AIRTABLE_TOOL_DECLARATION` |
 | `mcp_bridge.py` | Dynamic Model Context Protocol client for extending Lina with external tools. | `MCPBridge.execute_tool()` |
@@ -91,6 +93,8 @@ cp .env.example .env
 | `VOICE_NAME` | **Ja** | Gemini voice name. Options: `Aoede`, `Kore`, `Puck`, `Fenrir`, or custom replication ID. | `Aoede` |
 | `ENABLE_CALL_RECORDING`| Nein | Speichert Anrufe als WAV und TXT-Transkripte. Default: `true`. | `true` |
 | `RECORDINGS_DIR` | Nein | Zielverzeichnis für Aufnahmen. Default: `recordings`. | `recordings` |
+| `LOGS_DIR` | Nein | Zielverzeichnis für Logs & Error-Logs. Default: `logs`. | `logs` |
+| `DEBUG_MODE` | Nein | Verboses Frame- & Audio-Tracing. Default: `false`. | `false` |
 | `LANGFUSE_PUBLIC_KEY` | Nein | Langfuse Tracing Public Key. Aus [cloud.langfuse.com](https://cloud.langfuse.com). | `pk-lf-...` |
 | `LANGFUSE_SECRET_KEY` | Nein | Langfuse Tracing Secret Key. | `sk-lf-...` |
 | `LANGFUSE_HOST` | Nein | Langfuse Server Host. Default: `https://cloud.langfuse.com`. | `https://cloud.langfuse.com` |
@@ -153,11 +157,19 @@ In FreeSWITCH (`/etc/freeswitch/dialplan/default/`):
 
 ## 6. How to Test and Run the Agent
 
-### Health Check (Zero-Audio Verification)
+### Health & Monitoring Endpoints
 ```bash
+# 1. Quick Health Check:
 curl http://localhost:8000/health
+
+# 2. Live Telemetrie & Betriebsmetriken (Uptime, Calls, Tools):
+curl http://localhost:8000/metrics
+
+# 3. Fehlerpuffer (letzte aufgetretene Exceptions):
+curl http://localhost:8000/debug/errors
 ```
-Erwartete JSON-Antwort:
+
+Erwartete Health JSON-Antwort:
 ```json
 {
   "status": "healthy",
@@ -167,8 +179,17 @@ Erwartete JSON-Antwort:
   "airtable_direct": true,
   "mcp_enabled": true,
   "call_recording_enabled": true,
-  "langfuse_tracing_enabled": true
+  "langfuse_tracing_enabled": true,
+  "active_calls": 0,
+  "total_calls": 12,
+  "total_errors": 0
 }
+```
+
+### 7-Schritte Pre-Push Integrity Check & Deploy
+Führen Sie vor Änderungen immer aus:
+```bash
+./commit_and_deploy.sh "Ihre Commit-Nachricht"
 ```
 
 ### Lokaler Mikrofon-Test
@@ -179,5 +200,7 @@ python test_local.py
 ### Production Deployment mit Docker Compose
 ```bash
 docker compose up -d --build
+docker compose logs -f
+```
 docker compose logs -f
 ```

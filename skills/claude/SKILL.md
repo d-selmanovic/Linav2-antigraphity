@@ -32,6 +32,9 @@ When executing tasks in this codebase as Claude Code:
 | Operation | Command |
 | :--- | :--- |
 | **Check Server Health** | `curl -s http://localhost:8000/health \| jq .` |
+| **Inspect Telemetry & Metrics** | `curl -s http://localhost:8000/metrics \| jq .` |
+| **Inspect Error Logs** | `tail -n 50 logs/error.log` |
+| **Run Pre-Push Audit & Deploy** | `./commit_and_deploy.sh "commit message"` |
 | **Inspect Active Calls** | `docker compose logs --tail=100 -f` |
 | **Test Mic Locally** | `python test_local.py` |
 | **Reload FreeSWITCH Dialplan** | `fs_cli -x "reloadxml"` |

@@ -109,7 +109,10 @@ docker compose logs -f --tail=50
   "n8n_connected": false,
   "mcp_enabled": true,
   "call_recording_enabled": true,
-  "langfuse_tracing_enabled": true
+  "langfuse_tracing_enabled": true,
+  "active_calls": 0,
+  "total_calls": 24,
+  "total_errors": 0
 }
 ```
 
@@ -121,9 +124,16 @@ docker compose logs -f --tail=50
 # Check if port 8000 is open and listening
 netstat -an | grep 8000
 
-# Inspect local WAV call recordings
+# Inspect local WAV call recordings and error logs
 ls -lh recordings/
+tail -n 50 logs/error.log
+
+# Fetch Prometheus / JSON live operational metrics
+curl -s http://localhost:8000/metrics | jq .
 
 # Verify Python syntax across all core modules
-python3 -m py_compile server.py airtable_service.py audio_recorder.py telemetry.py prompts.py
+python3 -m py_compile server.py airtable_service.py audio_recorder.py telemetry.py logger_config.py prompts.py
+
+# Run the 7-step pre-push integrity auditor & deployer
+./commit_and_deploy.sh "chore: codex automated audit"
 ```
