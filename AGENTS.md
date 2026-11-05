@@ -8,6 +8,11 @@ This document governs agent behavior (Antigravity, Gemini, OpenAI Codex, Claude 
 
 For comprehensive operational guidance, troubleshooting, and deployment workflows, consult:
 - **Project Skill:** `skills/lina-voice-agent/SKILL.md`
+- **Global Skill Registration:** The skill is globally registered in:
+  - Antigravity & Gemini: `~/.gemini/config/skills/lina-voice-agent/SKILL.md`
+  - Claude Code: `~/.claude/skills/lina-voice-agent/SKILL.md`
+  - OpenAI Codex: `~/.codex/skills/lina-voice-agent/SKILL.md`
+  - Run `./setup_skills.sh` to reinstall or verify global registration on any host.
 - **Master Documentation:** `GESAMTDOKUMENTATION.md`
 - **Dialplan & Deployment Guide:** `ANLEITUNG.md`
 - **Post-Call Automations:** `HR_OPERATIVER_PROZESS.md`

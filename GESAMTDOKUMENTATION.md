@@ -50,6 +50,20 @@ Anrufer (Kandidat aus Bosnien / Balkan)
 
 ## Teil 1: Technische Einrichtung & Deployment
 
+### Phase 0: Lokale KI-Assistenten & Skill-Integration
+
+> **Lokale KI-Assistenten: Der Skill ist in Antigravity/Gemini, Claude Code und Codex global registriert.**
+
+Das gesamte Wissen für Konfiguration, Dialplans, Airtable-Validierung, Tests und Deployment ist als modularer Skill hinterlegt:
+* **Im Projekt:** [`skills/lina-voice-agent/SKILL.md`](skills/lina-voice-agent/SKILL.md)
+* **Global für Google Antigravity & Gemini:** `~/.gemini/config/skills/lina-voice-agent/SKILL.md`
+* **Global für Claude Code:** `~/.claude/skills/lina-voice-agent/SKILL.md` (via `~/.config/skillshare/skills/`)
+* **Global für OpenAI Codex:** `~/.codex/skills/lina-voice-agent/SKILL.md`
+
+Führen Sie auf einem neuen Rechner einfach `./setup_skills.sh` aus, um den Skill für alle Assistenten schlüsselfertig zu registrieren.
+
+---
+
 ### Phase 1: API-Schlüssel vorbereiten
 1. **Google Gemini API Key:**  
    Unter [aistudio.google.com](https://aistudio.google.com) ➔ Links auf **„Get API key“** ➔ **„Create API key“**.

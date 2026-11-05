@@ -4,7 +4,7 @@
 Real-time duplex Voice AI Agent for recruiting construction workers (Bihać casting 16-20.11., Step2Job / Job-Step). Built with Google Gemini 3.8 Live API, FastAPI, FreeSWITCH PBX audio stream (IPv4 WebSocket), direct Airtable database integration, and Model Context Protocol (MCP).
 
 ## Relevant Files & Skills
-- **Skill Definition:** `skills/lina-voice-agent/SKILL.md` (also installed globally in `~/.claude/skills/lina-voice-agent/`)
+- **Skill Definition:** `skills/lina-voice-agent/SKILL.md` (globally registered in `~/.claude/skills/lina-voice-agent/`, `~/.gemini/config/skills/lina-voice-agent/`, and `~/.codex/skills/lina-voice-agent/`. Reinstall via `./setup_skills.sh`.)
 - **Core Server:** `server.py` (FastAPI + WebSocket + 8kHz ↔ 16/24kHz audio resampler)
 - **Database Client:** `airtable_service.py` (`Prijave (test)` table upsert)
 - **Prompt & Persona:** `prompts.py` (Bosnian ijekavski prompt & tool declarations)

@@ -7,12 +7,13 @@ Produktionsreifer Sprachagent auf Basis von **Google Gemini 3.8 Live** mit **dir
 ## 📑 Inhaltsverzeichnis
 1. [Architektur](#-architektur)
 2. [Dateien im Projekt](#-dateien-im-projekt)
-3. [Voraussetzungen & Vorbereitung](#-voraussetzungen--vorbereitung)
-4. [Lokale Einrichtung](#-lokale-einrichtung)
-5. [Airtable Konfiguration](#-airtable-konfiguration)
-6. [PBX / Telefonanlagen-Anbindung](#-pbx--telefonanlagen-anbindung)
-7. [MCP-Erweiterung (Model Context Protocol)](#-mcp-erweiterung)
-8. [Deployment-Anleitung (Produktion)](#-deployment-anleitung)
+3. [Lokale KI-Assistenten (Skill-Integration)](#-lokale-ki-assistenten-skill-integration)
+4. [Voraussetzungen & Vorbereitung](#-voraussetzungen--vorbereitung)
+5. [Lokale Einrichtung](#-lokale-einrichtung)
+6. [Airtable Konfiguration](#-airtable-konfiguration)
+7. [PBX / Telefonanlagen-Anbindung](#-pbx--telefonanlagen-anbindung)
+8. [MCP-Erweiterung (Model Context Protocol)](#-mcp-erweiterung)
+9. [Deployment-Anleitung (Produktion)](#-deployment-anleitung)
    - [A. Mit Docker & Docker-Compose (Empfohlen)](#a-mit-docker--docker-compose)
    - [B. Als Linux Systemd Service](#b-als-linux-systemd-service)
    - [C. Cloud Deployment (Railway / Google Cloud Run)](#c-cloud-deployment)
@@ -52,6 +53,41 @@ Anrufer (Kandidat aus BiH/Balkan)
 * `Dockerfile` & `docker-compose.yml`: Für schlüsselfertiges 1-Klick-Deployment.
 * `requirements.txt`: Python-Abhängigkeiten.
 * `.env.example`: Vorlage für alle Umgebungsvariablen.
+* `skills/lina-voice-agent/SKILL.md`: Autonomer Skill für alle gängigen KI-Coding-Assistenten.
+* `setup_skills.sh`: 1-Klick Installationsskript zur globalen Registrierung des Skills.
+* `AGENTS.md`: Universelle Steuerungsdatei für OpenAI Codex, Antigravity und Cursor.
+* `CLAUDE.md`: Spezifikationsdatei für Claude Code.
+* `GESAMTDOKUMENTATION.md`: Umfassendes End-to-End Handbuch (Technik, PBX, HR-Prozess).
+* `ANLEITUNG.md`: FreeSWITCH Dialplan & Server-Setup Anleitung.
+* `HR_OPERATIVER_PROZESS.md`: Post-Call Workflows (SMS, WhatsApp-Dokumentenempfang, Recruiter-Alerts).
+* `VOICE_BRANDING_GUIDE.md`: Anleitung für Gemini 3.8 Flash TTS Voice Design & Replication.
+
+---
+
+## 🤖 Lokale KI-Assistenten (Skill-Integration)
+
+> **Lokale KI-Assistenten: Der Skill ist in Antigravity/Gemini, Claude Code und Codex global registriert.**
+
+Jeder Entwickler oder Administrator kann dieses Repository mit jedem modernen KI-Coding-Assistenten öffnen. Der Skill [`skills/lina-voice-agent/SKILL.md`](skills/lina-voice-agent/SKILL.md) ist auf dem Host-System global in allen drei Assistenten-Ecosystemen registriert:
+
+| KI-Assistent | Globaler Registrierungspfad | Erkennungsmechanismus |
+| :--- | :--- | :--- |
+| **Google Antigravity & Gemini** | `~/.gemini/config/skills/lina-voice-agent/SKILL.md` | Antigravity Customization Engine / Native Skills |
+| **Claude Code** | `~/.claude/skills/lina-voice-agent/SKILL.md` | Claude Skill Directory (`~/.config/skillshare/skills/`) & `CLAUDE.md` |
+| **OpenAI Codex** | `~/.codex/skills/lina-voice-agent/SKILL.md` | Codex Global Skills & `AGENTS.md` |
+
+### Automatisches 1-Klick Installationsskript (`setup_skills.sh`)
+Wenn Sie dieses Projekt auf einem neuen Rechner klonen oder einen neuen Assistenten anbinden möchten, führen Sie einfach aus:
+```bash
+./setup_skills.sh
+```
+Das Skript kopiert und verlinkt den Skill automatisch in alle vorhandenen Konfigurationsverzeichnisse von Antigravity, Claude Code und OpenAI Codex.
+
+Sobald der Skill registriert ist, versteht jeder KI-Assistent automatisch:
+1. Wie `.env` konfiguriert und validiert wird.
+2. Wie das Airtable-Schema `Prijave (test)` aufgebaut sein muss.
+3. Wie der FreeSWITCH-Dialplan konfiguriert wird (inkl. `caller_id=${caller_id_number}`).
+4. Wie Tests (`test_local.py`, `/health`) und Docker-Deployments durchgeführt werden.
 
 ---
 
