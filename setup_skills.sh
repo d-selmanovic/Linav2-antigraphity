@@ -1,41 +1,42 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# setup_skills.sh — Installiert den Lina Voice Agent Skill für Antigravity, Claude & Codex
+# setup_skills.sh — Installiert maßgeschneiderte Skills für Gemini, Claude & Codex
 # ==============================================================================
 
 set -e
 
-SOURCE_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/skills/lina-voice-agent"
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILLS_DIR="$BASE_DIR/skills"
 
-if [ ! -d "$SOURCE_SKILL_DIR" ]; then
-  echo "❌ Fehler: Quell-Skill-Verzeichnis nicht gefunden unter $SOURCE_SKILL_DIR"
-  exit 1
-fi
+echo "🚀 Installiere framework-spezifische Lina Voice Agent Skills..."
 
-echo "🚀 Installiere Lina Voice Agent Skill für lokale KI-Assistenten..."
+# 1. Google Antigravity & Gemini CLI (Spezifisch für Gemini 3.8 Live & Multimodal Audio)
+GEMINI_TARGET="$HOME/.gemini/config/skills/lina-voice-agent"
+mkdir -p "$GEMINI_TARGET/references"
+cp "$SKILLS_DIR/gemini/SKILL.md" "$GEMINI_TARGET/SKILL.md"
+cp -r "$SKILLS_DIR/gemini/references/"* "$GEMINI_TARGET/references/" 2>/dev/null || true
+echo "  ✅ Google Antigravity & Gemini: $GEMINI_TARGET (Gemini Live & Audio Pacing)"
 
-# 1. Google Antigravity & Gemini CLI
-GEMINI_SKILLS_DIR="$HOME/.gemini/config/skills/lina-voice-agent"
-mkdir -p "$GEMINI_SKILLS_DIR"
-cp "$SOURCE_SKILL_DIR/SKILL.md" "$GEMINI_SKILLS_DIR/SKILL.md"
-echo "  ✅ Google Antigravity & Gemini: $GEMINI_SKILLS_DIR/SKILL.md"
-
-# 2. Claude Code (via ~/.config/skillshare/skills oder ~/.claude/skills)
+# 2. Claude Code (Spezifisch für Claude CLI, FreeSWITCH Dialplans & HR-Workflows)
 if [ -d "$HOME/.config/skillshare/skills" ]; then
-  CLAUDE_SKILLS_DIR="$HOME/.config/skillshare/skills/lina-voice-agent"
+  CLAUDE_TARGET="$HOME/.config/skillshare/skills/lina-voice-agent"
 else
-  CLAUDE_SKILLS_DIR="$HOME/.claude/skills/lina-voice-agent"
+  CLAUDE_TARGET="$HOME/.claude/skills/lina-voice-agent"
 fi
-mkdir -p "$CLAUDE_SKILLS_DIR"
-cp "$SOURCE_SKILL_DIR/SKILL.md" "$CLAUDE_SKILLS_DIR/SKILL.md"
-echo "  ✅ Claude Code:                 $CLAUDE_SKILLS_DIR/SKILL.md"
+mkdir -p "$CLAUDE_TARGET/references"
+cp "$SKILLS_DIR/claude/SKILL.md" "$CLAUDE_TARGET/SKILL.md"
+cp -r "$SKILLS_DIR/claude/references/"* "$CLAUDE_TARGET/references/" 2>/dev/null || true
+echo "  ✅ Claude Code:                 $CLAUDE_TARGET (CLI Dialplans & HR Pipelines)"
 
-# 3. OpenAI Codex
-CODEX_SKILLS_DIR="$HOME/.codex/skills/lina-voice-agent"
-mkdir -p "$CODEX_SKILLS_DIR"
-cp "$SOURCE_SKILL_DIR/SKILL.md" "$CODEX_SKILLS_DIR/SKILL.md"
-echo "  ✅ OpenAI Codex:                $CODEX_SKILLS_DIR/SKILL.md"
+# 3. OpenAI Codex (Spezifisch für deterministische Schemas, Langfuse & Docker)
+CODEX_TARGET="$HOME/.codex/skills/lina-voice-agent"
+mkdir -p "$CODEX_TARGET/references"
+cp "$SKILLS_DIR/codex/SKILL.md" "$CODEX_TARGET/SKILL.md"
+cp -r "$SKILLS_DIR/codex/references/"* "$CODEX_TARGET/references/" 2>/dev/null || true
+echo "  ✅ OpenAI Codex:                $CODEX_TARGET (Schemas, Langfuse & Docker)"
 
 echo ""
-echo "🎉 Fertig! Der Lina Voice Agent Skill ist nun global für Antigravity, Claude Code und Codex aktiv."
-echo "   Jeder Assistent erkennt das Projekt nun automatisch und kann Setup, Dialplan & Deployment steuern."
+echo "🎉 Fertig! Jeder Assistent hat nun seine spezialisierte Skill-Edition erhalten:"
+echo "   • Gemini/Antigravity ➔ Multimodal Audio Streaming, 8kHz/16kHz/24kHz Resampling, Bosnian Audio-Director"
+echo "   • Claude Code        ➔ FreeSWITCH Dialplans, XML Hot-Reload, n8n/Chatwoot HR Pipelines"
+echo "   • OpenAI Codex       ➔ Pydantic Schemas, Langfuse v2 Spans, Docker Production Orchestration"

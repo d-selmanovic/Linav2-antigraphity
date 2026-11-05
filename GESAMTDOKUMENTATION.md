@@ -50,17 +50,19 @@ Anrufer (Kandidat aus Bosnien / Balkan)
 
 ## Teil 1: Technische Einrichtung & Deployment
 
-### Phase 0: Lokale KI-Assistenten & Skill-Integration
+### Phase 0: Lokale KI-Assistenten & Framework-spezifische Skills
 
-> **Lokale KI-Assistenten: Der Skill ist in Antigravity/Gemini, Claude Code und Codex global registriert.**
+> **Lokale KI-Assistenten: Für jedes Framework existiert eine maßgeschneiderte, tiefgehende Skill-Edition!**
 
-Das gesamte Wissen für Konfiguration, Dialplans, Airtable-Validierung, Tests und Deployment ist als modularer Skill hinterlegt:
-* **Im Projekt:** [`skills/lina-voice-agent/SKILL.md`](skills/lina-voice-agent/SKILL.md)
-* **Global für Google Antigravity & Gemini:** `~/.gemini/config/skills/lina-voice-agent/SKILL.md`
-* **Global für Claude Code:** `~/.claude/skills/lina-voice-agent/SKILL.md` (via `~/.config/skillshare/skills/`)
-* **Global für OpenAI Codex:** `~/.codex/skills/lina-voice-agent/SKILL.md`
+Das gesamte Wissen für Konfiguration, Dialplans, Airtable-Validierung, Tests und Deployment ist in drei zielgerichteten Editionen hinterlegt:
+* **Google Antigravity & Gemini (`~/.gemini/config/skills/lina-voice-agent/`):**  
+  Spezialisiert auf Gemini 3.8 Live WebSocket-Streaming, 8kHz ↔ 16kHz/24kHz Audio-Resampling und bosnische Audio-Regie („Govorna režija“ -20% Tempo, 1s Pausen).
+* **Claude Code (`~/.claude/skills/lina-voice-agent/`):**  
+  Spezialisiert auf Claude CLI-Befehlsmuster, FreeSWITCH XML Dialplan Integration (`caller_id=${caller_id_number}`), `fs_cli` Hot-Reloading und nachgelagerte HR-Pipelines via n8n & WhatsApp/Chatwoot.
+* **OpenAI Codex (`~/.codex/skills/lina-voice-agent/`):**  
+  Spezialisiert auf deterministische Pydantic-Schemas, Langfuse v2 Spans & Latenz-Tracking, Docker Multi-Stage Container und defensive Zero-Crash Fallbacks.
 
-Führen Sie auf einem neuen Rechner einfach `./setup_skills.sh` aus, um den Skill für alle Assistenten schlüsselfertig zu registrieren.
+Führen Sie auf einem neuen Rechner einfach `./setup_skills.sh` aus, um alle drei Frameworks mit ihren jeweiligen Spezialisierungen schlüsselfertig zu registrieren.
 
 ---
 

@@ -67,30 +67,24 @@ Anrufer (Kandidat aus BiH/Balkan)
 
 ---
 
-## 🤖 Lokale KI-Assistenten (Skill-Integration)
+## 🤖 Framework-spezifische KI-Assistenten-Skills (Gemini, Claude & Codex)
 
-> **Lokale KI-Assistenten: Der Skill ist in Antigravity/Gemini, Claude Code und Codex global registriert.**
+> **Lokale KI-Assistenten: Für jedes Framework existiert eine maßgeschneiderte, tiefgehende Skill-Edition!**
 
-Jeder Entwickler oder Administrator kann dieses Repository mit jedem modernen KI-Coding-Assistenten öffnen. Der Skill [`skills/lina-voice-agent/SKILL.md`](skills/lina-voice-agent/SKILL.md) ist auf dem Host-System global in allen drei Assistenten-Ecosystemen registriert:
+Jeder KI-Coding-Assistent besitzt eigene Stärken, Tools und Befehlsstrukturen. Daher ist der Skill im Ordner `skills/` in drei dedizierten, hochpräzisen Editionen aufgebaut:
 
-| KI-Assistent | Globaler Registrierungspfad | Erkennungsmechanismus |
+| Framework | Spezialisierung der Skill-Edition | Enthaltene Referenzen |
 | :--- | :--- | :--- |
-| **Google Antigravity & Gemini** | `~/.gemini/config/skills/lina-voice-agent/SKILL.md` | Antigravity Customization Engine / Native Skills |
-| **Claude Code** | `~/.claude/skills/lina-voice-agent/SKILL.md` | Claude Skill Directory (`~/.config/skillshare/skills/`) & `CLAUDE.md` |
-| **OpenAI Codex** | `~/.codex/skills/lina-voice-agent/SKILL.md` | Codex Global Skills & `AGENTS.md` |
+| **Google Antigravity & Gemini**<br>`~/.gemini/config/skills/lina-voice-agent/` | • Gemini 3.8 Live WebSocket-Protokoll (`LiveConnectConfig`)<br>• Bidirektionales Audio-Streaming & Resampling (8kHz ↔ 16kHz/24kHz)<br>• Native Live-Transkription (`input_` & `output_audio_transcription`)<br>• Bosnische Audio-Regie & Pacing („Govorna režija“ -20%)<br>• Gemini Flash TTS Voice Design & Replication | `references/gemini_live_protocol.md`<br>`references/audio_director_bosnian.md` |
+| **Claude Code (Anthropic)**<br>`~/.claude/skills/lina-voice-agent/` | • Claude CLI Befehlsmuster & non-interaktive Ausführung<br>• FreeSWITCH XML Dialplan Integration & Hot-Reload (`fs_cli -x "reloadxml"`)<br>• Query-Parameter Forwarding (`caller_id=${caller_id_number}`)<br>• Downstream HR-Pipelines via n8n & WhatsApp Business / Chatwoot | `references/dialplan_freeswitch.md`<br>`references/operational_hr_automations.md` |
+| **OpenAI Codex**<br>`~/.codex/skills/lina-voice-agent/` | • Deterministische Pydantic v2 Datenmodelle & Airtable-Schema<br>• Langfuse v2 Observability (Session-Traces, Tool-Spans, Latenzen)<br>• Defensive Fehlerbehandlung & Zero-Crash Fallbacks<br>• Multi-Stage Docker Container-Orchestrierung & Health-Checks | `references/schema_validation.md`<br>`references/langfuse_instrumentation.md`<br>`references/docker_production.md` |
 
 ### Automatisches 1-Klick Installationsskript (`setup_skills.sh`)
 Wenn Sie dieses Projekt auf einem neuen Rechner klonen oder einen neuen Assistenten anbinden möchten, führen Sie einfach aus:
 ```bash
 ./setup_skills.sh
 ```
-Das Skript kopiert und verlinkt den Skill automatisch in alle vorhandenen Konfigurationsverzeichnisse von Antigravity, Claude Code und OpenAI Codex.
-
-Sobald der Skill registriert ist, versteht jeder KI-Assistent automatisch:
-1. Wie `.env` konfiguriert und validiert wird.
-2. Wie das Airtable-Schema `Prijave (test)` aufgebaut sein muss.
-3. Wie der FreeSWITCH-Dialplan konfiguriert wird (inkl. `caller_id=${caller_id_number}`).
-4. Wie Tests (`test_local.py`, `/health`) und Docker-Deployments durchgeführt werden.
+Das Skript kopiert und verlinkt jede maßgeschneiderte Edition automatisch in das jeweilige Konfigurationsverzeichnis von Antigravity, Claude Code und OpenAI Codex.
 
 ---
 
