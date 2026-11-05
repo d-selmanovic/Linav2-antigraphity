@@ -148,6 +148,15 @@ if [ "$AUDIT_FAILED" -eq 1 ]; then
   exit 1
 fi
 
+# Wenn nur geprüft werden soll (z. B. in Git Hooks oder CI/CD)
+if [ "$1" == "--check-only" ] || [ "$1" == "--audit" ]; then
+  echo ""
+  echo -e "${BOLD}${GREEN}==============================================================================${RESET}"
+  echo -e "${BOLD}${GREEN} ✓ AUDIT ERFOLGREICH: Alle Prüfungen (Syntax, Deps, .env, Verdrahtung) OK! ${RESET}"
+  echo -e "${BOLD}${GREEN}==============================================================================${RESET}"
+  exit 0
+fi
+
 # ------------------------------------------------------------------------------
 # 6. Skill-Synchronisation für Antigravity, Claude & Codex
 # ------------------------------------------------------------------------------
