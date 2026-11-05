@@ -12,8 +12,9 @@ Produktionsreifer Sprachagent auf Basis von **Google Gemini 3.8 Live** mit **dir
 5. [Lokale Einrichtung](#-lokale-einrichtung)
 6. [Airtable Konfiguration](#-airtable-konfiguration)
 7. [PBX / Telefonanlagen-Anbindung](#-pbx--telefonanlagen-anbindung)
-8. [MCP-Erweiterung (Model Context Protocol)](#-mcp-erweiterung)
-9. [Deployment-Anleitung (Produktion)](#-deployment-anleitung)
+8. [Transkription, Aufnahme & Langfuse-Tracing](#-transkription-aufnahme--langfuse-tracing)
+9. [MCP-Erweiterung (Model Context Protocol)](#-mcp-erweiterung)
+10. [Deployment-Anleitung (Produktion)](#-deployment-anleitung)
    - [A. Mit Docker & Docker-Compose (Empfohlen)](#a-mit-docker--docker-compose)
    - [B. Als Linux Systemd Service](#b-als-linux-systemd-service)
    - [C. Cloud Deployment (Railway / Google Cloud Run)](#c-cloud-deployment)
@@ -51,6 +52,8 @@ Anrufer (Kandidat aus BiH/Balkan)
 * `prompts.py`: Linas optimierter bosnischer System-Prompt (Audio-Regie, Pausen, Einwandbehandlung).
 * `test_local.py`: Lokales Testskript über Mac-/PC-Mikrofon und Lautsprecher.
 * `Dockerfile` & `docker-compose.yml`: Für schlüsselfertiges 1-Klick-Deployment.
+* `audio_recorder.py`: Anrufaufzeichnung (WAV-Mix) und Transkriptions-Export (.txt).
+* `telemetry.py`: Langfuse LLM-Observability & Tracing-Integration.
 * `requirements.txt`: Python-Abhängigkeiten.
 * `.env.example`: Vorlage für alle Umgebungsvariablen.
 * `skills/lina-voice-agent/SKILL.md`: Autonomer Skill für alle gängigen KI-Coding-Assistenten.
@@ -148,6 +151,36 @@ Die Telefonanlage verbindet sich per WebSocket mit dem Server:
 * **WebSocket URL:** `ws://<DEINE-SERVER-IP>:8000/ws/pbx`
 * **Audio-Format:** 16-Bit Linear PCM, Standard 8.000 Hz Mono (oder G.711 PCMA/PCMU).
 * Der Server rechnet die Abtastrate automatisch zwischen Ihrer PBX (8 kHz) und Gemini Live (16 kHz Input / 24 kHz Output) um.
+
+---
+
+## 🎙️ Transkription, Aufnahme & Langfuse-Tracing
+
+### 1. Transkription (Wie funktioniert die Spracherkennung?)
+Lina nutzt die **native bidirektionale Streaming-Transkription** von Google Gemini 3.8 Live (`input_audio_transcription` und `output_audio_transcription`):
+* **Anrufer:** Die gesprochenen Worte des Anrufers werden synchron im Event-Stream (`server_content.input_transcription.text`) bereitgestellt. Es wird **kein separater STT-Dienst** (wie Whisper oder Deepgram) benötigt — keine zusätzliche Latenz, keine extra API-Kosten.
+* **Lina:** Jedes von Lina gesprochene Wort wird parallel als Text übertragen (`server_content.output_transcription.text`).
+* **Barge-in / Unterbrechung:** Wenn der Anrufer Lina unterbricht, erkennt Gemini dies sofort (`server_content.interrupted`) und der Server leert augenblicklich den Audio-Puffer zur Telefonanlage.
+
+### 2. Anrufaufzeichnung (Call Recording)
+Sie haben zwei parallele Möglichkeiten für die Aufzeichnung:
+1. **Server-seitig (`audio_recorder.py`):**
+   * Zeichnet Caller-Audio und Agent-Audio auf und mischt sie in eine standardisierte WAV-Datei.
+   * Ablageort: `./recordings/call_<timestamp>_<caller_id>.wav`
+   * Exportiert zeitgleich ein chronologisches Text-Transkript mit Sekunden-Zeitstempeln: `./recordings/call_<timestamp>_<caller_id>_transcript.txt`.
+   * Steuerbar über `.env`: `ENABLE_CALL_RECORDING=true` und `RECORDINGS_DIR=recordings`.
+2. **PBX-seitig (FreeSWITCH Dialplan):**
+   * Im FreeSWITCH-Dialplan vor dem WebSocket-Start einfach eintragen:
+     ```xml
+     <action application="record_session" data="/var/lib/freeswitch/recordings/${uuid}.wav"/>
+     ```
+
+### 3. Langfuse Observability & Tracing (`telemetry.py`)
+Das System verfügt über eine integrierte Anbindung an **Langfuse**:
+* **Session-Tracing:** Jeder Anruf wird als Trace mit Session-ID, Caller-ID, Modell und Tags angelegt.
+* **Turns & Events:** Jede Sprachäußerung von Anrufer und Lina wird protokolliert.
+* **Tool-Spans:** Jeder Aufruf der Airtable-Datenbank oder des n8n-Webhooks wird mit Parametern, Ausführungsdauer (Latenz) und Erfolgsstatus (`success` / `error`) aufgezeichnet.
+* **Ausfallsicherer Dummy-Modus:** Sind keine Langfuse-Keys konfiguriert, arbeitet das Tracing geräuschlos im Hintergrund ohne Leistungsverlust oder Abstürze.
 
 ---
 

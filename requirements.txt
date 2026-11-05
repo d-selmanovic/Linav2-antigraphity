@@ -8,3 +8,4 @@ numpy>=1.26.0
 scipy>=1.14.0
 mcp>=1.0.0
 pyairtable>=2.3.0
+langfuse>=2.0.0

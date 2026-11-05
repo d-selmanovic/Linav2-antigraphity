@@ -5,7 +5,9 @@ Real-time duplex Voice AI Agent for recruiting construction workers (Bihać cast
 
 ## Relevant Files & Skills
 - **Skill Definition:** `skills/lina-voice-agent/SKILL.md` (globally registered in `~/.claude/skills/lina-voice-agent/`, `~/.gemini/config/skills/lina-voice-agent/`, and `~/.codex/skills/lina-voice-agent/`. Reinstall via `./setup_skills.sh`.)
-- **Core Server:** `server.py` (FastAPI + WebSocket + 8kHz ↔ 16/24kHz audio resampler)
+- **Core Server:** `server.py` (FastAPI + WebSocket + 8kHz ↔ 16/24kHz audio resampler, native transcription, barge-in)
+- **Call Recorder:** `audio_recorder.py` (Dual-channel audio mix to `.wav`, timestamped transcript export to `.txt`)
+- **Telemetry:** `telemetry.py` (Langfuse session & tool tracing with zero-crash dummy fallback)
 - **Database Client:** `airtable_service.py` (`Prijave (test)` table upsert)
 - **Prompt & Persona:** `prompts.py` (Bosnian ijekavski prompt & tool declarations)
 - **Extensibility:** `mcp_bridge.py` (Model Context Protocol bridge)
@@ -22,6 +24,10 @@ Ensure `.env` contains:
 - `PORT`: `8000`
 - `PBX_SAMPLE_RATE`: `8000`
 - `VOICE_NAME`: `Aoede`
+- `ENABLE_CALL_RECORDING`: `true`
+- `LANGFUSE_PUBLIC_KEY`: Optional (`pk-lf-...`)
+- `LANGFUSE_SECRET_KEY`: Optional (`sk-lf-...`)
+- `LANGFUSE_HOST`: Optional (`https://cloud.langfuse.com`)
 
 ## Verification Commands
 - Health check: `curl http://localhost:8000/health`

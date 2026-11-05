@@ -152,6 +152,46 @@ Fügen Sie an Ihrer Nebenstelle oder Inbound-Route in FreeSWITCH folgenden XML-C
 
 ---
 
+### Phase 6: Transkription, Anruf-Aufzeichnung & Langfuse-Tracing
+
+#### 1. Worüber läuft die Transkription?
+Die Transkription erfolgt **nativ und vollautomatisch direkt über Google Gemini 3.8 Live**:
+* In `CONFIG` sind `input_audio_transcription` und `output_audio_transcription` aktiviert.
+* Synchron zur Sprachverarbeitung sendet Gemini jedes gesprochene Wort des Anrufers in Echtzeit als Text (`server_content.input_transcription.text`).
+* Linas eigene Antworten werden zeitgleich als Text (`server_content.output_transcription.text`) mitgeliefert.
+* **Vorteil:** Sie benötigen **keinen Drittanbieter-Dienst** wie Whisper oder Deepgram für STT — das spart Kosten, Latenz und Server-Ressourcen.
+
+#### 2. Worüber läuft die Anruf-Aufzeichnung (Call Recording)?
+Sie haben die Wahl zwischen zwei sich perfekt ergänzenden Methoden:
+* **Option 1: Server-seitige Aufzeichnung (`audio_recorder.py`):**
+  * Bei jedem Anruf zeichnet der Server die rohen PCM-Frames des Anrufers und von Lina auf.
+  * Beim Auflegen werden beide Spuren gemischt und als WAV-Datei abgelegt:  
+    `recordings/call_<timestamp>_<caller_id>.wav`
+  * Gleichzeitig wird ein vollständiges, sekundengenaues Text-Transkript gespeichert:  
+    `recordings/call_<timestamp>_<caller_id>_transcript.txt`
+  * Konfigurierbar über `.env`: `ENABLE_CALL_RECORDING=true`.
+* **Option 2: PBX-seitige Telefonie-Aufzeichnung (FreeSWITCH):**
+  * Fügen Sie im FreeSWITCH-Dialplan einfach folgende Zeile vor dem Audio-Stream ein:
+    ```xml
+    <action application="record_session" data="/var/lib/freeswitch/recordings/${uuid}.wav"/>
+    ```
+  * Damit speichert FreeSWITCH das gesamte Gespräch in bester Telefonie-Qualität direkt auf der PBX.
+
+#### 3. Langfuse Observability & Tracing (`telemetry.py`)
+Das System verfügt über einen integrierten Observability-Layer für [Langfuse](https://cloud.langfuse.com):
+* **Trace-Erstellung:** Jeder Anruf erzeugt einen eigenen Trace mit Caller-ID, Model, Voice-Name und Tags (`bihac-casting`, `recruiting`).
+* **Turns & Dialoge:** Alle gesprochenen Aussagen werden als strukturierte Events im Trace visualisiert.
+* **Tool-Spans:** Jeder Schreibvorgang in Airtable (`sacuvaj_kandidata_u_airtable`) wird als eigener Span mit Eingabeparametern, Latenz und Antwort protokolliert.
+* **Einrichtung:** Tragen Sie in `.env` einfach Ihre Keys ein:
+  ```ini
+  LANGFUSE_PUBLIC_KEY=pk-lf-...
+  LANGFUSE_SECRET_KEY=sk-lf-...
+  LANGFUSE_HOST=https://cloud.langfuse.com
+  ```
+  *(Fehlen die Keys, bleibt der Server voll funktionsfähig und läuft im lautlosen Fallback-Modus).*
+
+---
+
 ## Teil 2: Die 3 operativen HR-Folgeprozesse
 
 > **Wichtig:** Diese 3 Bausteine können ganz entspannt **NACH** dem Deployment eingerichtet werden. Der Agent (`server.py`) funktioniert völlig unabhängig davon!

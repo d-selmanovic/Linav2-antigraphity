@@ -1,5 +1,7 @@
 import os
 import json
+import uuid
+import time
 import asyncio
 import logging
 from typing import Optional
@@ -16,6 +18,8 @@ from google.genai import types
 from prompts import LINA_SYSTEM_INSTRUCTION, AIRTABLE_TOOL_DECLARATION, N8N_TOOL_DECLARATION
 from airtable_service import AirtableService
 from mcp_bridge import MCPBridge
+from audio_recorder import CallRecorder
+from telemetry import LinaTracer
 
 load_dotenv()
 
@@ -27,6 +31,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 VOICE_NAME = os.getenv("VOICE_NAME", "Aoede")
 PBX_SAMPLE_RATE = int(os.getenv("PBX_SAMPLE_RATE", "8000"))
+ENABLE_CALL_RECORDING = os.getenv("ENABLE_CALL_RECORDING", "true").lower() in ("true", "1", "yes")
+RECORDINGS_DIR = os.getenv("RECORDINGS_DIR", "recordings")
 MODEL = "models/gemini-3.8-live"
 
 if not GEMINI_API_KEY:
@@ -35,6 +41,7 @@ if not GEMINI_API_KEY:
 # Initialisiere Services
 airtable_service = AirtableService()
 mcp_bridge = MCPBridge()
+tracer = LinaTracer()
 
 # Gemini Client
 client = genai.Client(
@@ -50,7 +57,7 @@ mcp_tools = mcp_bridge.get_gemini_tool_declarations()
 if mcp_tools:
     active_tools.extend(mcp_tools)
 
-# Gemini Live Konfiguration
+# Gemini Live Konfiguration mit nativer Audio-Transkription
 CONFIG = types.LiveConnectConfig(
     response_modalities=["AUDIO"],
     speech_config=types.SpeechConfig(
@@ -58,6 +65,8 @@ CONFIG = types.LiveConnectConfig(
             prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=VOICE_NAME)
         )
     ),
+    input_audio_transcription=types.AudioTranscriptionConfig(),
+    output_audio_transcription=types.AudioTranscriptionConfig(),
     context_window_compression=types.ContextWindowCompressionConfig(
         trigger_tokens=104857,
         sliding_window=types.SlidingWindow(target_tokens=52428),
@@ -69,7 +78,7 @@ CONFIG = types.LiveConnectConfig(
     tools=[types.Tool(function_declarations=active_tools)]
 )
 
-app = FastAPI(title="Lina Voice Agent - PBX, Airtable & MCP")
+app = FastAPI(title="Lina Voice Agent - PBX, Airtable, MCP, Recording & Langfuse")
 
 
 def resample_audio(audio_bytes: bytes, orig_sr: int, target_sr: int) -> bytes:
@@ -137,7 +146,9 @@ async def health_check():
         "voice": VOICE_NAME,
         "airtable_direct": bool(os.getenv("AIRTABLE_API_KEY")),
         "n8n_connected": bool(N8N_WEBHOOK_URL),
-        "mcp_enabled": True
+        "mcp_enabled": True,
+        "call_recording_enabled": ENABLE_CALL_RECORDING,
+        "langfuse_tracing_enabled": tracer.is_enabled
     }
 
 
@@ -145,26 +156,82 @@ async def health_check():
 async def pbx_audio_stream(websocket: WebSocket):
     """
     WebSocket-Schnittstelle für Ihre PBX-Telefonanlage (z. B. FreeSWITCH / Asterisk).
-    Empfängt Audio vom Anrufer, leitet es an Gemini Live weiter und sendet Linas Sprache zurück.
+    Empfängt Audio vom Anrufer, leitet es an Gemini Live weiter, transkribiert Sprache,
+    zeichnet den Anruf auf und überträgt Tracing-Daten an Langfuse.
     """
     await websocket.accept()
+    call_id = str(uuid.uuid4())
     caller_id = websocket.query_params.get("caller_id") or websocket.query_params.get("caller") or websocket.query_params.get("from") or ""
-    logger.info(f"PBX Anruf verbunden! Caller-ID: {caller_id or 'Unbekannt'}. Starte Gemini 3.8 Live Session...")
+    logger.info(f"📞 PBX Anruf verbunden! Call-ID: {call_id} | Caller-ID: {caller_id or 'Unbekannt'}. Starte Gemini 3.8 Live Session...")
+
+    # Initialisiere Audio-Recorder und Langfuse-Trace
+    recorder = CallRecorder(
+        call_id=call_id,
+        caller_id=caller_id,
+        sample_rate=PBX_SAMPLE_RATE,
+        output_dir=RECORDINGS_DIR,
+        enabled=ENABLE_CALL_RECORDING
+    )
+
+    trace = tracer.start_call_trace(
+        call_id=call_id,
+        caller_id=caller_id,
+        metadata={
+            "pbx_sample_rate": PBX_SAMPLE_RATE,
+            "recordings_dir": RECORDINGS_DIR,
+            "voice": VOICE_NAME,
+            "model": MODEL
+        }
+    )
 
     try:
         async with client.aio.live.connect(model=MODEL, config=CONFIG) as session:
-            logger.info("Gemini Live Session aktiv mit Airtable & MCP!")
+            logger.info("✨ Gemini Live Session aktiv (Audio, Live-Transkription, Tracing)!")
 
             audio_to_pbx_queue = asyncio.Queue()
 
             async def receive_from_gemini():
-                """Liest Audio und Funktionsaufrufe von Gemini Live"""
+                """Liest Audio, Transkriptionen und Funktionsaufrufe von Gemini Live"""
                 try:
                     async for response in session.receive():
-                        # 1. Behandle Function Calling (Airtable, n8n, MCP)
+                        server_content = response.server_content
+                        if server_content:
+                            # A. Live-Transkription des Anrufers
+                            if server_content.input_transcription and server_content.input_transcription.text:
+                                user_text = server_content.input_transcription.text
+                                logger.info(f"🗣️ [Anrufer {caller_id}]: {user_text}")
+                                recorder.add_transcript_entry("caller", user_text)
+                                trace.event(name="caller_speech", input=user_text)
+
+                            # B. Live-Transkription von Lina
+                            if server_content.output_transcription and server_content.output_transcription.text:
+                                lina_text = server_content.output_transcription.text
+                                logger.info(f"🎙️ [Lina]: {lina_text}")
+                                recorder.add_transcript_entry("lina", lina_text)
+                                trace.event(name="lina_speech", output=lina_text)
+
+                            # C. Audio von Lina an PBX weiterleiten und aufzeichnen
+                            if server_content.model_turn:
+                                for part in server_content.model_turn.parts:
+                                    if data := getattr(part, "inline_data", None):
+                                        pbx_audio = resample_audio(data.data, 24000, PBX_SAMPLE_RATE)
+                                        recorder.record_agent_audio(pbx_audio)
+                                        await audio_to_pbx_queue.put(pbx_audio)
+
+                            # D. Unterbrechung (Barge-in / Anrufer spricht dazwischen)
+                            if server_content.interrupted:
+                                logger.info("⚡ Anrufer hat unterbrochen (Barge-in)! Puffer wird geleert...")
+                                while not audio_to_pbx_queue.empty():
+                                    try:
+                                        audio_to_pbx_queue.get_nowait()
+                                    except asyncio.QueueEmpty:
+                                        break
+                                trace.event(name="barge_in_interrupted")
+
+                        # 2. Behandle Function Calling (Airtable, n8n, MCP) mit Langfuse Span
                         if response.tool_call is not None:
                             for function_call in response.tool_call.function_calls:
-                                call_id = function_call.id
+                                call_id_tool = function_call.id
                                 name = function_call.name
                                 args = function_call.args
 
@@ -172,27 +239,31 @@ async def pbx_audio_stream(websocket: WebSocket):
                                 if caller_id and not args.get("broj_telefona"):
                                     args["broj_telefona"] = caller_id
 
-                                # Führe Tool aus
+                                # Langfuse Tool Span
+                                tool_span = trace.span(
+                                    name=f"tool_call:{name}",
+                                    input=args,
+                                    metadata={"call_id": call_id, "caller_id": caller_id}
+                                )
+
                                 tool_result = await execute_tool_call(name, args)
+
+                                tool_span.end(
+                                    output=tool_result,
+                                    level="DEFAULT" if tool_result.get("status") == "success" else "ERROR",
+                                    status_message=str(tool_result.get("status"))
+                                )
 
                                 # Sende Tool-Ergebnis zurück an Gemini Live
                                 await session.send_tool_response(
                                     function_responses=[
                                         types.FunctionResponse(
                                             name=name,
-                                            id=call_id,
+                                            id=call_id_tool,
                                             response={"result": tool_result}
                                         )
                                     ]
                                 )
-
-                        # 2. Behandle Sprache von Lina (Audio-Out)
-                        server_content = response.server_content
-                        if server_content and server_content.model_turn:
-                            for part in server_content.model_turn.parts:
-                                if data := getattr(part, "inline_data", None):
-                                    pbx_audio = resample_audio(data.data, 24000, PBX_SAMPLE_RATE)
-                                    await audio_to_pbx_queue.put(pbx_audio)
 
                 except asyncio.CancelledError:
                     pass
@@ -211,12 +282,14 @@ async def pbx_audio_stream(websocket: WebSocket):
                     logger.error(f"Fehler in send_audio_to_pbx: {e}")
 
             async def receive_audio_from_pbx():
-                """Empfängt Sprache vom Anrufer (PBX) und schickt sie an Gemini Live"""
+                """Empfängt Sprache vom Anrufer (PBX), zeichnet sie auf und schickt sie an Gemini Live"""
                 try:
                     while True:
                         message = await websocket.receive()
                         if "bytes" in message and message["bytes"]:
-                            gemini_audio = resample_audio(message["bytes"], PBX_SAMPLE_RATE, 16000)
+                            raw_audio = message["bytes"]
+                            recorder.record_caller_audio(raw_audio)
+                            gemini_audio = resample_audio(raw_audio, PBX_SAMPLE_RATE, 16000)
                             await session.send(input={"data": gemini_audio, "mime_type": "audio/pcm"})
                         elif "text" in message:
                             logger.info(f"PBX Signal empfangen: {message['text']}")
@@ -232,51 +305,46 @@ async def pbx_audio_stream(websocket: WebSocket):
             )
 
     except WebSocketDisconnect:
-        logger.info("PBX Anruf beendet.")
+        logger.info(f"PBX Anruf {call_id} beendet.")
     except Exception as e:
-        logger.error(f"Fehler während des Anrufs: {e}")
+        logger.error(f"Fehler während des Anrufs {call_id}: {e}")
+    finally:
+        # Finalisiere Audio-Aufzeichnung & Langfuse-Trace
+        wav_path = recorder.finalize()
+        trace.update(
+            output={
+                "status": "call_ended",
+                "recording_wav": wav_path,
+                "turns_count": len(recorder.transcript)
+            }
+        )
+        tracer.flush()
 
 
 @app.get("/")
-async def browser_test_ui():
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <title>Lina (Job-Step) - PBX, Airtable & MCP Server</title>
-        <style>
-            body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; text-align: center; padding: 40px; }
-            .card { background: #1e1e1e; padding: 30px; border-radius: 12px; max-width: 650px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-            h1 { color: #4285f4; }
-            .badge { display: inline-block; padding: 6px 12px; border-radius: 20px; background: #2d3748; margin: 5px; font-size: 14px; }
-            .active { background: #0f9d58; }
-            p { color: #a0aec0; line-height: 1.6; }
-            code { background: #2d3748; padding: 3px 8px; border-radius: 4px; color: #63b3ed; }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h1>Lina - Job-Step Voice Server</h1>
-            <p>Ihr Gemini 3.8 Live Server ist bereit für Telefonie, Airtable und MCP!</p>
-            <div>
-                <span class="badge active">PBX: Bereit</span>
-                <span class="badge active">Airtable: Direkt angebunden</span>
-                <span class="badge active">MCP: Aktiv</span>
-                <span class="badge">Stimme: Aoede</span>
-            </div>
-            <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
-            <p><strong>PBX WebSocket-Endpunkt:</strong><br><code>ws://&lt;DEINE-SERVER-IP&gt;:8000/ws/pbx</code></p>
-            <p>Lina nimmt Anrufe entgegen, führt das Interview auf Bosnisch und schreibt die Daten direkt in Ihre Airtable-Tabelle <strong>Prijave (test)</strong>.</p>
-        </div>
-    </body>
+async def root():
+    return HTMLResponse("""
+    <html>
+        <head><title>Lina Voice Agent Server</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f4f6f8;">
+            <h1>🎙️ Lina Voice Agent Server (Job-Step)</h1>
+            <p>Status: <span style="color: green; font-weight: bold;">ONLINE</span></p>
+            <ul>
+                <li><b>Engine:</b> Google Gemini 3.8 Live (models/gemini-3.8-live)</li>
+                <li><b>PBX WebSocket:</b> <code>/ws/pbx</code></li>
+                <li><b>Native Transkription:</b> Aktiv (Caller + Agent)</li>
+                <li><b>Audio-Aufnahme:</b> Aktiv (WAV in /recordings)</li>
+                <li><b>Observability:</b> Langfuse Tracing</li>
+                <li><b>Health Check:</b> <a href="/health">/health</a></li>
+            </ul>
+        </body>
     </html>
-    """
-    return HTMLResponse(content=html_content)
+    """)
 
 
 if __name__ == "__main__":
     import uvicorn
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("server:app", host=host, port=port, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    logger.info(f"🚀 Starte Lina PBX Voice Server auf {host}:{port}...")
+    uvicorn.run("server:app", host=host, port=port, reload=False)

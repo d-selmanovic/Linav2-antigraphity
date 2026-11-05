@@ -40,9 +40,16 @@ For comprehensive operational guidance, troubleshooting, and deployment workflow
    - FreeSWITCH communicates over standard IPv4 WebSocket (`ws://<HOST>:8000/ws/pbx?caller_id=${caller_id_number}`).
    - Default sample rate is 8000 Hz (G.711 PCM). Resampling to/from 16kHz/24kHz is handled in `server.py`.
 
-5. **Security & Secrets:**
-   - Never log or commit raw API keys (`GEMINI_API_KEY`, `AIRTABLE_API_KEY`).
-   - Keep `.env` strictly untracked in `.gitignore`.
+5. **Transcription & Call Recording:**
+   - Real-time speech-to-text is delivered natively by Gemini 3.8 Live (`input_audio_transcription` and `output_audio_transcription`).
+   - Call audio is recorded and mixed into `./recordings/*.wav` and `./recordings/*_transcript.txt` by `audio_recorder.py`.
+
+6. **Observability & Tracing:**
+   - Langfuse client in `telemetry.py` tracks calls, dialog turns, and tool execution spans with zero-crash fallback.
+
+7. **Security & Secrets:**
+   - Never log or commit raw API keys (`GEMINI_API_KEY`, `AIRTABLE_API_KEY`, `LANGFUSE_SECRET_KEY`).
+   - Keep `.env` and `recordings/` strictly untracked in `.gitignore`.
 
 ---
 

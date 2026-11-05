@@ -16,5 +16,7 @@ venv/
 .AppleDouble
 .LSOverride
 
-# Logs
+# Logs & Recordings
 *.log
+recordings/
+*.wav
