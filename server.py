@@ -20,11 +20,12 @@ from airtable_service import AirtableService
 from mcp_bridge import MCPBridge
 from audio_recorder import CallRecorder
 from telemetry import LinaTracer
+from logger_config import get_logger, metrics, setup_logging
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("LinaVoiceServer")
+setup_logging()
+logger = get_logger("LinaVoiceServer")
 
 # Konfiguration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -104,24 +105,34 @@ def resample_audio(audio_bytes: bytes, orig_sr: int, target_sr: int) -> bytes:
 
 
 async def execute_tool_call(name: str, args: dict) -> dict:
-    """Führt Function Calls für Airtable, n8n oder MCP aus"""
+    """Führt Function Calls für Airtable, n8n oder MCP aus mit Fehler-Logging & Metriken"""
     logger.info(f"⚡ Ausführung von Tool: {name} mit Daten: {args}")
+    try:
+        # 1. Direkter Airtable Aufruf
+        if name == "sacuvaj_kandidata_u_airtable":
+            res = await airtable_service.save_or_update_candidate(args)
+            metrics.record_tool_call(name, success=(res.get("status") == "success"))
+            # Wenn n8n parallel aktiv ist, benachrichtige auch n8n
+            if N8N_WEBHOOK_URL:
+                asyncio.create_task(send_to_n8n(args))
+            return res
 
-    # 1. Direkter Airtable Aufruf
-    if name == "sacuvaj_kandidata_u_airtable":
-        res = await airtable_service.save_or_update_candidate(args)
-        # Wenn n8n parallel aktiv ist, benachrichtige auch n8n
-        if N8N_WEBHOOK_URL:
-            asyncio.create_task(send_to_n8n(args))
-        return res
+        # 2. n8n Webhook
+        elif name == "prosledi_kandidata_u_n8n":
+            res = await send_to_n8n(args)
+            metrics.record_tool_call(name, success=(res.get("status") == "success"))
+            return res
 
-    # 2. n8n Webhook
-    elif name == "prosledi_kandidata_u_n8n":
-        return await send_to_n8n(args)
-
-    # 3. Beliebige zukünftige MCP-Tools
-    else:
-        return await mcp_bridge.execute_tool(name, args)
+        # 3. Beliebige zukünftige MCP-Tools
+        else:
+            res = await mcp_bridge.execute_tool(name, args)
+            metrics.record_tool_call(name, success=True)
+            return res
+    except Exception as e:
+        logger.exception(f"❌ Kritischer Fehler bei Tool-Ausführung {name}: {e}")
+        metrics.record_tool_call(name, success=False)
+        metrics.record_error(f"Tool {name} fehlgeschlagen", exc=e)
+        return {"status": "error", "message": str(e)}
 
 
 async def send_to_n8n(data: dict) -> dict:
@@ -133,7 +144,8 @@ async def send_to_n8n(data: dict) -> dict:
             resp = await http_client.post(N8N_WEBHOOK_URL, json=data)
             return {"status": "success", "status_code": resp.status_code}
     except Exception as e:
-        logger.error(f"Fehler bei n8n Webhook: {e}")
+        logger.exception(f"❌ Fehler bei n8n Webhook: {e}")
+        metrics.record_error("n8n Webhook Fehler", exc=e)
         return {"status": "error", "message": str(e)}
 
 
@@ -148,7 +160,25 @@ async def health_check():
         "n8n_connected": bool(N8N_WEBHOOK_URL),
         "mcp_enabled": True,
         "call_recording_enabled": ENABLE_CALL_RECORDING,
-        "langfuse_tracing_enabled": tracer.is_enabled
+        "langfuse_tracing_enabled": tracer.is_enabled,
+        "active_calls": metrics.active_calls,
+        "total_calls": metrics.total_calls,
+        "total_errors": metrics.error_count
+    }
+
+
+@app.get("/metrics")
+async def get_metrics():
+    """Gibt detaillierte Server-, Anruf- und Tool-Metriken für Monitoring zurück"""
+    return metrics.get_summary()
+
+
+@app.get("/debug/errors")
+async def get_recent_errors():
+    """Gibt die letzten erfassten Fehler mit Zeitstempeln und Details zurück"""
+    return {
+        "total_errors": metrics.error_count,
+        "recent_errors": metrics.recent_errors
     }
 
 
@@ -163,6 +193,8 @@ async def pbx_audio_stream(websocket: WebSocket):
     call_id = str(uuid.uuid4())
     caller_id = websocket.query_params.get("caller_id") or websocket.query_params.get("caller") or websocket.query_params.get("from") or ""
     logger.info(f"📞 PBX Anruf verbunden! Call-ID: {call_id} | Caller-ID: {caller_id or 'Unbekannt'}. Starte Gemini 3.8 Live Session...")
+    metrics.record_call_start()
+    call_has_error = False
 
     # Initialisiere Audio-Recorder und Langfuse-Trace
     recorder = CallRecorder(
@@ -307,13 +339,16 @@ async def pbx_audio_stream(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info(f"PBX Anruf {call_id} beendet.")
     except Exception as e:
-        logger.error(f"Fehler während des Anrufs {call_id}: {e}")
+        call_has_error = True
+        logger.exception(f"❌ Unerwarteter Fehler während Anruf {call_id}: {e}")
+        metrics.record_error(f"Call {call_id} failed", exc=e)
     finally:
+        metrics.record_call_end(success=not call_has_error)
         # Finalisiere Audio-Aufzeichnung & Langfuse-Trace
         wav_path = recorder.finalize()
         trace.update(
             output={
-                "status": "call_ended",
+                "status": "error" if call_has_error else "call_ended",
                 "recording_wav": wav_path,
                 "turns_count": len(recorder.transcript)
             }
