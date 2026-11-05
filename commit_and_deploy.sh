@@ -179,7 +179,14 @@ echo -e "${BOLD}[7/7] Erstelle sauberes ZIP-Bundle & Git Commit / Push...${RESET
 
 DOWNLOAD_ZIP="/Users/activi/Downloads/Lina-Voice-Agent-V2.zip"
 rm -f "$DOWNLOAD_ZIP" Lina-Voice-Agent-V2.zip
-zip -r "$DOWNLOAD_ZIP" . -x "*.git*" "*.DS_Store" "*__pycache__*" "*.zip" ".env" "recordings/*" "logs/*" >/dev/null
+# Falls env_config.txt oder env.txt editiert wurde, automatisch mit .env synchronisieren
+if [ -f "env_config.txt" ]; then
+  cp "env_config.txt" ".env"
+elif [ -f "env.txt" ]; then
+  cp "env.txt" ".env"
+fi
+
+zip -r "$DOWNLOAD_ZIP" . -x "*.git*" "*.DS_Store" "*__pycache__*" "*.zip" ".env" "env*.txt" "recordings/*" "logs/*" >/dev/null
 cp "$DOWNLOAD_ZIP" "./Lina-Voice-Agent-V2.zip"
 echo -e "  ${GREEN}✓${RESET} ZIP-Bundle aktualisiert: $DOWNLOAD_ZIP"
 

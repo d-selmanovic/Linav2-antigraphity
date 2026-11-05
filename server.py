@@ -22,7 +22,11 @@ from audio_recorder import CallRecorder
 from telemetry import LinaTracer
 from logger_config import get_logger, metrics, setup_logging
 
-load_dotenv()
+load_dotenv(".env")
+if os.path.exists("env_config.txt"):
+    load_dotenv("env_config.txt", override=True)
+elif os.path.exists("env.txt"):
+    load_dotenv("env.txt", override=True)
 
 setup_logging()
 logger = get_logger("LinaVoiceServer")
@@ -49,6 +53,9 @@ client = genai.Client(
     http_options={"api_version": "v1beta"},
     api_key=GEMINI_API_KEY,
 )
+if hasattr(client, "_api_client") and hasattr(client._api_client, "_websocket_ssl_ctx"):
+    client._api_client._websocket_ssl_ctx["ping_interval"] = None
+    client._api_client._websocket_ssl_ctx["ping_timeout"] = None
 
 # Kombiniere Tools: Airtable (Direkt), n8n (Webhook), MCP (Erweiterbar)
 active_tools = [AIRTABLE_TOOL_DECLARATION, N8N_TOOL_DECLARATION]
@@ -322,7 +329,9 @@ async def pbx_audio_stream(websocket: WebSocket):
                             raw_audio = message["bytes"]
                             recorder.record_caller_audio(raw_audio)
                             gemini_audio = resample_audio(raw_audio, PBX_SAMPLE_RATE, 16000)
-                            await session.send(input={"data": gemini_audio, "mime_type": "audio/pcm"})
+                            await session.send_realtime_input(
+                                audio=types.Blob(data=gemini_audio, mime_type="audio/pcm;rate=16000")
+                            )
                         elif "text" in message:
                             logger.info(f"PBX Signal empfangen: {message['text']}")
                 except (WebSocketDisconnect, asyncio.CancelledError):

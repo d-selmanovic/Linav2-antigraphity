@@ -15,18 +15,23 @@ from google.genai import types
 from prompts import LINA_SYSTEM_INSTRUCTION, AIRTABLE_TOOL_DECLARATION, N8N_TOOL_DECLARATION
 from airtable_service import AirtableService
 from mcp_bridge import MCPBridge
+from logger_config import setup_logging, get_logger, metrics
 
-load_dotenv()
+load_dotenv(".env")
+if os.path.exists("env_config.txt"):
+    load_dotenv("env_config.txt", override=True)
+elif os.path.exists("env.txt"):
+    load_dotenv("env.txt", override=True)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("LinaLocalTest")
+setup_logging()
+logger = get_logger("LinaLocalTest")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 VOICE_NAME = os.getenv("VOICE_NAME", "Aoede")
 MODEL = "models/gemini-3.8-live"
 
-if not GEMINI_API_KEY:
-    raise ValueError("Bitte tragen Sie Ihren GEMINI_API_KEY in die .env Datei ein!")
+if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+    raise ValueError("Bitte tragen Sie Ihren echten GEMINI_API_KEY in die .env oder env_config.txt Datei ein!")
 
 airtable_service = AirtableService()
 mcp_bridge = MCPBridge()
@@ -35,6 +40,9 @@ client = genai.Client(
     http_options={"api_version": "v1beta"},
     api_key=GEMINI_API_KEY,
 )
+if hasattr(client, "_api_client") and hasattr(client._api_client, "_websocket_ssl_ctx"):
+    client._api_client._websocket_ssl_ctx["ping_interval"] = None
+    client._api_client._websocket_ssl_ctx["ping_timeout"] = None
 
 active_tools = [AIRTABLE_TOOL_DECLARATION, N8N_TOOL_DECLARATION]
 mcp_tools = mcp_bridge.get_gemini_tool_declarations()
@@ -48,6 +56,8 @@ CONFIG = types.LiveConnectConfig(
             prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=VOICE_NAME)
         )
     ),
+    input_audio_transcription=types.AudioTranscriptionConfig(),
+    output_audio_transcription=types.AudioTranscriptionConfig(),
     context_window_compression=types.ContextWindowCompressionConfig(
         trigger_tokens=104857,
         sliding_window=types.SlidingWindow(target_tokens=52428),
@@ -89,20 +99,90 @@ async def run_test():
     print("Drücken Sie Strg+C zum Beenden.")
     print("="*55 + "\n")
 
+    playback_queue = asyncio.Queue()
+    is_speaking = False
+
+    async def playback_worker():
+        nonlocal is_speaking
+        try:
+            while True:
+                chunk = await playback_queue.get()
+                if chunk is None:
+                    break
+                await asyncio.to_thread(speaker_stream.write, chunk)
+                playback_queue.task_done()
+        except asyncio.CancelledError:
+            pass
+
     async with client.aio.live.connect(model=MODEL, config=CONFIG) as session:
-        
+        logger.info("✨ Lokale Gemini Live Session aktiv.")
+
+        playback_task = asyncio.create_task(playback_worker())
+
         async def mic_loop():
+            nonlocal is_speaking
             while True:
                 data = await asyncio.to_thread(mic_stream.read, CHUNK, exception_on_overflow=False)
-                await session.send(input={"data": data, "mime_type": "audio/pcm"})
+                # Echo-Schutz: Wenn Lina über Laptop-Lautsprecher spricht, Mikrofon dämpfen
+                # um Selbst-Unterbrechung (Acoustic Echo Barge-in) zu verhindern
+                if is_speaking:
+                    await asyncio.sleep(0.01)
+                    continue
+
+                await session.send_realtime_input(
+                    audio=types.Blob(data=data, mime_type="audio/pcm;rate=16000")
+                )
 
         async def speaker_loop():
+            nonlocal is_speaking
+            lina_has_spoken_turn = False
+
             async for response in session.receive():
+                # Server Content (Audio & Live-Transkription)
+                if server_content := response.server_content:
+                    # User Transkription
+                    if server_content.input_transcription and server_content.input_transcription.text:
+                        print(f"\n🗣️ Vi: {server_content.input_transcription.text}")
+
+                    # Lina Transkription
+                    if server_content.output_transcription and server_content.output_transcription.text:
+                        if not lina_has_spoken_turn:
+                            print(f"\n🎙️ Lina: ", end="", flush=True)
+                            lina_has_spoken_turn = True
+                        print(server_content.output_transcription.text, end="", flush=True)
+
+                    # Audio Playback
+                    if model_turn := server_content.model_turn:
+                        is_speaking = True
+                        for part in model_turn.parts:
+                            if inline_data := getattr(part, "inline_data", None):
+                                await playback_queue.put(inline_data.data)
+
+                    # Wenn Unterbrechung erkannt wurde
+                    if server_content.interrupted:
+                        logger.info("⚡ Unterbrechung erkannt.")
+                        while not playback_queue.empty():
+                            try:
+                                playback_queue.get_nowait()
+                                playback_queue.task_done()
+                            except (asyncio.QueueEmpty, ValueError):
+                                break
+                        is_speaking = False
+                        lina_has_spoken_turn = False
+
+                    # Wenn Lina ihren Satz beendet hat
+                    if server_content.turn_complete:
+                        # Warte bis Audio fertig abgespielt wurde
+                        await playback_queue.join()
+                        is_speaking = False
+                        lina_has_spoken_turn = False
+                        print("\n🟢 Slušam vas... (Sprechen Sie jetzt)")
+
                 # Tool Call Handling
                 if response.tool_call is not None:
                     for fc in response.tool_call.function_calls:
                         logger.info(f"\n⚡ LINA RUFT TOOL AUF: {fc.name}")
-                        print(f"📦 Datenpaket: {fc.args}")
+                        print(f"\n📦 Airtable Datenpaket: {fc.args}")
                         
                         if fc.name == "sacuvaj_kandidata_u_airtable":
                             res = await airtable_service.save_or_update_candidate(fc.args)
@@ -115,14 +195,10 @@ async def run_test():
                             ]
                         )
 
-                # Audio
-                if server_content := response.server_content:
-                    if model_turn := server_content.model_turn:
-                        for part in model_turn.parts:
-                            if inline_data := getattr(part, "inline_data", None):
-                                await asyncio.to_thread(speaker_stream.write, inline_data.data)
-
-        await asyncio.gather(mic_loop(), speaker_loop())
+        try:
+            await asyncio.gather(mic_loop(), speaker_loop())
+        finally:
+            playback_task.cancel()
 
 
 if __name__ == "__main__":
@@ -130,3 +206,7 @@ if __name__ == "__main__":
         asyncio.run(run_test())
     except KeyboardInterrupt:
         print("\nTest beendet.")
+    except Exception as e:
+        logger.exception(f"Unerwarteter Fehler in test_local: {e}")
+        metrics.record_error("Fehler in test_local", exc=e)
+        raise

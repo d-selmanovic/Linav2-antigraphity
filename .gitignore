@@ -1,5 +1,7 @@
 # Secrets
 .env
+env.txt
+env_config.txt
 
 # Python
 __pycache__/

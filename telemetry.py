@@ -45,7 +45,14 @@ class LinaTracer:
         self.host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
         self.client: Optional[Any] = None
 
-        if LANGFUSE_AVAILABLE and self.public_key and self.secret_key:
+        is_configured = (
+            self.public_key 
+            and self.secret_key 
+            and not self.public_key.startswith("pk-lf-your_")
+            and not self.secret_key.startswith("sk-lf-your_")
+        )
+
+        if LANGFUSE_AVAILABLE and is_configured:
             try:
                 self.client = Langfuse(
                     public_key=self.public_key,
@@ -59,8 +66,10 @@ class LinaTracer:
         else:
             if not LANGFUSE_AVAILABLE:
                 logger.info("ℹ️ Langfuse SDK nicht installiert (pip install langfuse). Tracing läuft im Dummy-Modus.")
+            elif not is_configured:
+                logger.info("ℹ️ Langfuse Tracing inaktiv: Keys sind noch Dummy-Platzhalter. Es werden keine Daten an cloud.langfuse.com gesendet.")
             else:
-                logger.info("ℹ️ Keine Langfuse-Keys gesetzt (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY). Tracing inaktiv.")
+                logger.info("ℹ️ Keine Langfuse-Keys gesetzt. Tracing inaktiv.")
 
     @property
     def is_enabled(self) -> bool:
