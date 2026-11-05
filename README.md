@@ -54,6 +54,8 @@ Anrufer (Kandidat aus BiH/Balkan)
 * `Dockerfile` & `docker-compose.yml`: Für schlüsselfertiges 1-Klick-Deployment.
 * `audio_recorder.py`: Anrufaufzeichnung (WAV-Mix) und Transkriptions-Export (.txt).
 * `telemetry.py`: Langfuse LLM-Observability & Tracing-Integration.
+* `logger_config.py`: Strukturiertes Logging, rotierende Error-Logs & In-Memory Metriken.
+* `commit_and_deploy.sh`: Vollautomatischer Pre-Push Integrity-Auditor, Skill-Synchronisierer & Deployer.
 * `requirements.txt`: Python-Abhängigkeiten.
 * `.env.example`: Vorlage für alle Umgebungsvariablen.
 * `skills/lina-voice-agent/SKILL.md`: Autonomer Skill für alle gängigen KI-Coding-Assistenten.
@@ -178,7 +180,48 @@ Das System verfügt über eine integrierte Anbindung an **Langfuse**:
 
 ---
 
-## 🔌 MCP-Erweiterung
+## 📊 Logging, Error-Tracking & Monitoring
+
+### 1. Rotierendes Dateisystem-Logging (`logger_config.py`)
+Das System trennt operative Logs und Fehlerberichte automatisch in zwei getrennte, rotierende Logdateien (max. 10 MB pro Datei, 5 automatische Backups):
+* **`logs/lina.log`:** Vollständiger Ablauf aller Verbindungen, Transkripte und Tool-Aktivitäten.
+* **`logs/error.log`:** Dedizierte Fehler- und Exception-Sammlung (nur `WARNING`, `ERROR` und `CRITICAL`) mit vollem Python-Stacktrace zur schnellen Ursachenanalyse.
+* **Debug-Modus:** Setzen Sie `DEBUG_MODE=true` in der `.env`, um verboses Audio-Frame-Tracing zu aktivieren.
+
+### 2. Live Monitoring & Health Endpoints
+Der Server stellt HTTP-Schnittstellen für Status-Monitore (Prometheus, Zabbix, UptimeRobot, Datadog) bereit:
+* **`GET /health`:** Schneller Status-Check (Online, Voice, Airtable-Status, aktive Anrufe).
+* **`GET /metrics`:** Vollständige Telemetrie:
+  ```json
+  {
+    "uptime_seconds": 3600.0,
+    "uptime_human": "1h 0m 0s",
+    "calls": { "total": 14, "active": 1, "successful": 13, "failed": 0 },
+    "tool_calls": { "total": 13, "breakdown": { "sacuvaj_kandidata_u_airtable": 13 } },
+    "health": { "error_count": 0, "last_error": null }
+  }
+  ```
+* **`GET /debug/errors`:** Zeigt die letzten 20 aufgetretenen Fehler mit exakter Uhrzeit und Exception-Text.
+
+---
+
+## 🛡️ Pre-Push Auditor & Deployer (`commit_and_deploy.sh`)
+
+Um sicherzustellen, dass niemals unvollständige Konfigurationen, vergessene Variablen oder unverdrahtete Module auf GitHub landen, steht das All-in-One-Skript `commit_and_deploy.sh` bereit:
+
+```bash
+# Ausführen vor jedem Git Push / Release:
+./commit_and_deploy.sh "feat: mein neues feature"
+```
+
+### Was das Skript vollautomatisch prüft:
+1. **Python-Syntax:** Kompiliert alle Python-Dateien (`py_compile`).
+2. **Abhängigkeiten:** Gleicht alle `import`-Befehle im Code mit `requirements.txt` ab.
+3. **Umgebungsvariablen:** Prüft, ob jedes `os.getenv()` in `.env.example` vollständig dokumentiert ist.
+4. **Modul-Verdrahtung:** Verifiziert, ob alle Hilfsmodule (`audio_recorder`, `telemetry`, `logger_config`, `airtable_service`, `mcp_bridge`, `prompts`) fest in `server.py` eingebunden sind.
+5. **Dokumentations-Integrität:** Prüft, ob alle in den READMEs verlinkten Dateien tatsächlich auf der Festplatte existieren.
+6. **Skill-Synchronisation:** Führt `./setup_skills.sh` aus, um Antigravity, Claude Code und Codex auf den neuesten Stand zu bringen.
+7. **Release-Packaging & Push:** Erstellt das bereinigte Download-ZIP in `~/Downloads/`, committed alle Änderungen und pusht sie zu GitHub.
 
 Wenn Sie zukünftig beliebige MCP-Server anbinden möchten:
 1. Erstellen Sie eine Datei `mcp_servers.json`:

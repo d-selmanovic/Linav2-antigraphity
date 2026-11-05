@@ -10,6 +10,8 @@ Real-time duplex Voice AI Agent for recruiting construction workers (Bihać cast
 - **Core Server:** `server.py` (FastAPI + WebSocket + 8kHz ↔ 16/24kHz audio resampler, native transcription, barge-in)
 - **Call Recorder:** `audio_recorder.py` (Dual-channel audio mix to `.wav`, timestamped transcript export to `.txt`)
 - **Telemetry:** `telemetry.py` (Langfuse session & tool tracing with zero-crash dummy fallback)
+- **Logging & Metrics:** `logger_config.py` (Rotating logs in `logs/lina.log` and `logs/error.log`, metrics collection)
+- **Audit & Deploy:** `commit_and_deploy.sh` (Pre-push auditor and automated GitHub deployer)
 - **Database Client:** `airtable_service.py` (`Prijave (test)` table upsert)
 - **Prompt & Persona:** `prompts.py` (Bosnian ijekavski prompt & tool declarations)
 - **Extensibility:** `mcp_bridge.py` (Model Context Protocol bridge)

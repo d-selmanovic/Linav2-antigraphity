@@ -192,6 +192,29 @@ Das System verfügt über einen integrierten Observability-Layer für [Langfuse]
   ```
   *(Fehlen die Keys, bleibt der Server voll funktionsfähig und läuft im lautlosen Fallback-Modus).*
 
+#### 4. Logging, Error-Tracking & Live-Monitoring (`logger_config.py`)
+Das System verfügt über ein professionelles, rotierendes Log- und Monitoring-Subsystem:
+* **`logs/lina.log`:** Vollständiges Serverlog (max. 10 MB, 5 Backups).
+* **`logs/error.log`:** Dedizierte Fehleraufzeichnung (nur Warnings, Errors und Exceptions mit vollem Stacktrace).
+* **HTTP Endpoints für Monitoring:**
+  * `GET /health`: Aktiver Betriebszustand & Zähler.
+  * `GET /metrics`: Laufzeit (Uptime), Gesamtanrufe, aktive Telefonate, Erfolgsquote und Tool-Aufschlüsselung.
+  * `GET /debug/errors`: Die letzten 20 aufgetretenen Fehler als JSON.
+
+#### 5. Der Pre-Push Integrity Auditor & Deployer (`commit_and_deploy.sh`)
+Führen Sie vor jedem Commit oder Update einfach aus:
+```bash
+./commit_and_deploy.sh "Ihre Commit-Nachricht"
+```
+Das Skript führt eine 7-stufige Vorab-Prüfung durch:
+1. Syntax aller `.py`-Dateien prüfen.
+2. `requirements.txt` mit allen Python-Imports abgleichen.
+3. `.env.example` auf Vollständigkeit aller im Code genutzten Variablen prüfen.
+4. Prüfen, ob alle Module (`audio_recorder`, `telemetry`, `logger_config`) in `server.py` verdrahtet sind.
+5. Alle dokumentierten Dateien auf Existenz prüfen.
+6. Skills für Antigravity, Claude Code und Codex synchronisieren.
+7. ZIP-Download neu packen, Git committen und zu GitHub pushen.
+
 ---
 
 ## Teil 2: Die 3 operativen HR-Folgeprozesse

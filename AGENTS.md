@@ -48,12 +48,17 @@ For comprehensive operational guidance, troubleshooting, and deployment workflow
    - Real-time speech-to-text is delivered natively by Gemini 3.8 Live (`input_audio_transcription` and `output_audio_transcription`).
    - Call audio is recorded and mixed into `./recordings/*.wav` and `./recordings/*_transcript.txt` by `audio_recorder.py`.
 
-6. **Observability & Tracing:**
+6. **Observability, Tracing & Logging:**
    - Langfuse client in `telemetry.py` tracks calls, dialog turns, and tool execution spans with zero-crash fallback.
+   - Structured rotating logging in `logger_config.py` (`logs/lina.log` and `logs/error.log`).
+   - Live metrics exposed on `GET /metrics` and error log buffer on `GET /debug/errors`.
 
-7. **Security & Secrets:**
+7. **Deployment & Integrity:**
+   - Always run `./commit_and_deploy.sh` prior to pushing commits to run the 7-step integrity auditor.
+
+8. **Security & Secrets:**
    - Never log or commit raw API keys (`GEMINI_API_KEY`, `AIRTABLE_API_KEY`, `LANGFUSE_SECRET_KEY`).
-   - Keep `.env` and `recordings/` strictly untracked in `.gitignore`.
+   - Keep `.env`, `recordings/`, and `logs/` strictly untracked in `.gitignore`.
 
 ---
 
